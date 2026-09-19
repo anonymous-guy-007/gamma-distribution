@@ -117,14 +117,14 @@
     <h1>Interactive Gamma Distribution</h1>
 
     <p>
-      Adjust the shape parameter <strong>α</strong> and rate parameter
+      Adjust the shape parameter <strong>α</strong> and scale parameter
       <strong>β</strong> to see how the Gamma distribution changes.
     </p>
 
     <div class="formula">
       Density:
       <strong>
-        f(x) = β<sup>α</sup> / Γ(α) · x<sup>α−1</sup> e<sup>−βx</sup>,
+        f(x) = 1 / (Γ(α)β<sup>α</sup>) · x<sup>α−1</sup> e<sup>−x/β</sup>,
         x &gt; 0
       </strong>
     </div>
@@ -137,7 +137,7 @@
       </label>
 
       <label class="control">
-        <span>Rate β</span>
+        <span>Scale β</span>
         <input id="beta" type="range" min="0.2" max="5" step="0.1" value="1" />
         <span id="betaValue" class="value">1.0</span>
       </label>
@@ -214,14 +214,15 @@
 
     function gammaPdf(x, alpha, beta) {
       if (x <= 0) {
-        return alpha < 1 ? Infinity : alpha === 1 ? beta : 0;
+        return alpha < 1 ? Infinity : alpha === 1 ? 1 / beta : 0;
       }
 
+      // Gamma distribution parameterized by shape α and scale β.
       const logPdf =
-        alpha * Math.log(beta) -
-        logGamma(alpha) +
+        -logGamma(alpha) -
+        alpha * Math.log(beta) +
         (alpha - 1) * Math.log(x) -
-        beta * x;
+        x / beta;
 
       return Math.exp(logPdf);
     }
@@ -369,9 +370,9 @@
       alphaValue.textContent = alpha.toFixed(1);
       betaValue.textContent = beta.toFixed(1);
 
-      const mean = alpha / beta;
-      const variance = alpha / (beta * beta);
-      const sd = Math.sqrt(alpha) / beta;
+      const mean = alpha * beta;
+      const variance = alpha * beta * beta;
+      const sd = Math.sqrt(alpha) * beta;
 
       meanEl.textContent = mean.toFixed(3);
       varianceEl.textContent = variance.toFixed(3);
@@ -379,7 +380,7 @@
 
       // These are the scales that best fit the current distribution.
       const targetXMax = niceMax(
-        Math.max(mean + 5 * sd, 8 / beta, 2)
+        Math.max(mean + 5 * sd, 8 * beta, 2)
       );
 
       const probe = calculateDistribution(alpha, beta, targetXMax);
