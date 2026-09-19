@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interactive Gamma Distribution</title>
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #222;
+      background: #f7f7f8;
+    }
+
+    body {
+      margin: 0;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 16px;
+      padding: 2rem;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 1.8rem;
+    }
+
+    .formula {
+      margin: 0.75rem 0 1.5rem;
+      font-size: 1.05rem;
+      line-height: 1.7;
+    }
+
+    .controls {
+      display: grid;
+      gap: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .control {
+      display: grid;
+      grid-template-columns: 170px 1fr 70px;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    input[type="range"] {
+      width: 100%;
+    }
+
+    .value {
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+
+    canvas {
+      width: 100%;
+      height: 420px;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      background: white;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1rem;
+      margin-top: 1.25rem;
+    }
+
+    .stat {
+      padding: 1rem;
+      background: #f4f4f5;
+      border-radius: 10px;
+    }
+
+    .stat strong {
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 1rem;
+      }
+
+      .container {
+        padding: 1.25rem;
+      }
+
+      .control {
+        grid-template-columns: 1fr;
+        gap: 0.35rem;
+      }
+
+      .value {
+        text-align: left;
+      }
+
+      .stats {
+        grid-template-columns: 1fr;
+      }
+
+      canvas {
+        height: 340px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <h1>Interactive Gamma Distribution</h1>
+
+    <p>
+      Adjust the shape parameter <strong>α</strong> and rate parameter
+      <strong>β</strong> to see how the Gamma distribution changes.
+    </p>
+
+    <div class="formula">
+      Density:
+      <strong>
+        f(x) = β<sup>α</sup> / Γ(α) · x<sup>α−1</sup> e<sup>−βx</sup>,
+        x &gt; 0
+      </strong>
+    </div>
+
+    <section class="controls">
+      <label class="control">
+        <span>Shape α</span>
+        <input id="alpha" type="range" min="0.2" max="10" step="0.1" value="2" />
+        <span id="alphaValue" class="value">2.0</span>
+      </label>
+
+      <label class="control">
+        <span>Rate β</span>
+        <input id="beta" type="range" min="0.2" max="5" step="0.1" value="1" />
+        <span id="betaValue" class="value">1.0</span>
+      </label>
+    </section>
+
+    <canvas id="chart" width="900" height="420"></canvas>
+
+    <section class="stats">
+      <div class="stat">
+        <strong>Mean</strong>
+        <span id="mean"></span>
+      </div>
+      <div class="stat">
+        <strong>Variance</strong>
+        <span id="variance"></span>
+      </div>
+      <div class="stat">
+        <strong>Standard deviation</strong>
+        <span id="sd"></span>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const alphaInput = document.getElementById("alpha");
+    const betaInput = document.getElementById("beta");
+    const alphaValue = document.getElementById("alphaValue");
+    const betaValue = document.getElementById("betaValue");
+    const meanEl = document.getElementById("mean");
+    const varianceEl = document.getElementById("variance");
+    const sdEl = document.getElementById("sd");
+    const canvas = document.getElementById("chart");
+    const ctx = canvas.getContext("2d");
+
+    function logGamma(z) {
+      const coefficients = [
+        676.5203681218851,
+        -1259.1392167224028,
+        771.3234287776531,
+        -176.6150291621406,
+        12.507343278686905,
+        -0.13857109526572012,
+        9.9843695780195716e-6,
+        1.5056327351493116e-7
+      ];
+
+      if (z < 0.5) {
+        return Math.log(Math.PI) -
+          Math.log(Math.sin(Math.PI * z)) -
+          logGamma(1 - z);
+      }
+
+      z -= 1;
+      let x = 0.99999999999980993;
+
+      for (let i = 0; i < coefficients.length; i++) {
+        x += coefficients[i] / (z + i + 1);
+      }
+
+      const t = z + coefficients.length - 0.5;
+
+      return (
+        0.5 * Math.log(2 * Math.PI) +
+        (z + 0.5) * Math.log(t) -
+        t +
+        Math.log(x)
+      );
+    }
+
+    function gammaPdf(x, alpha, beta) {
+      if (x <= 0) {
+        return alpha < 1 ? Infinity : alpha === 1 ? beta : 0;
+      }
+
+      const logPdf =
+        alpha * Math.log(beta) -
+        logGamma(alpha) +
+        (alpha - 1) * Math.log(x) -
+        beta * x;
+
+      return Math.exp(logPdf);
+    }
+
+    function niceMax(value) {
+      if (!Number.isFinite(value) || value <= 0) {
+        return 1;
+      }
+
+      const exponent = Math.floor(Math.log10(value));
+      const fraction = value / Math.pow(10, exponent);
+
+      let niceFraction;
+      if (fraction <= 1) niceFraction = 1;
+      else if (fraction <= 2) niceFraction = 2;
+      else if (fraction <= 5) niceFraction = 5;
+      else niceFraction = 10;
+
+      return niceFraction * Math.pow(10, exponent);
+    }
+
+    function draw() {
+      const alpha = Number(alphaInput.value);
+      const beta = Number(betaInput.value);
+
+      alphaValue.textContent = alpha.toFixed(1);
+      betaValue.textContent = beta.toFixed(1);
+
+      const mean = alpha / beta;
+      const variance = alpha / (beta * beta);
+      const sd = Math.sqrt(alpha) / beta;
+
+      meanEl.textContent = mean.toFixed(3);
+      varianceEl.textContent = variance.toFixed(3);
+      sdEl.textContent = sd.toFixed(3);
+
+      const width = canvas.width;
+      const height = canvas.height;
+
+      const margin = {
+        left: 65,
+        right: 25,
+        top: 25,
+        bottom: 55
+      };
+
+      const plotWidth = width - margin.left - margin.right;
+      const plotHeight = height - margin.top - margin.bottom;
+
+      const xMax = Math.max(
+        mean + 5 * sd,
+        8 / beta,
+        2
+      );
+
+      const points = [];
+      let maxY = 0;
+
+      const n = 700;
+      for (let i = 0; i <= n; i++) {
+        const x = (i / n) * xMax;
+        const sampleX = x === 0 ? xMax / (n * 10) : x;
+        let y = gammaPdf(sampleX, alpha, beta);
+
+        if (!Number.isFinite(y)) {
+          y = 0;
+        }
+
+        points.push({ x, y });
+        maxY = Math.max(maxY, y);
+      }
+
+      const yMax = niceMax(maxY * 1.15);
+
+      ctx.clearRect(0, 0, width, height);
+
+      ctx.strokeStyle = "#dddddd";
+      ctx.lineWidth = 1;
+      ctx.fillStyle = "#555";
+      ctx.font = "14px system-ui";
+
+      const ticks = 5;
+
+      for (let i = 0; i <= ticks; i++) {
+        const x = margin.left + (i / ticks) * plotWidth;
+        const xValue = (i / ticks) * xMax;
+
+        ctx.beginPath();
+        ctx.moveTo(x, margin.top);
+        ctx.lineTo(x, margin.top + plotHeight);
+        ctx.stroke();
+
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillText(xValue.toFixed(1), x, margin.top + plotHeight + 10);
+      }
+
+      for (let i = 0; i <= ticks; i++) {
+        const y = margin.top + plotHeight - (i / ticks) * plotHeight;
+        const yValue = (i / ticks) * yMax;
+
+        ctx.beginPath();
+        ctx.moveTo(margin.left, y);
+        ctx.lineTo(margin.left + plotWidth, y);
+        ctx.stroke();
+
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+        ctx.fillText(yValue.toFixed(2), margin.left - 10, y);
+      }
+
+      ctx.strokeStyle = "#222";
+      ctx.lineWidth = 1.5;
+
+      ctx.beginPath();
+      ctx.moveTo(margin.left, margin.top);
+      ctx.lineTo(margin.left, margin.top + plotHeight);
+      ctx.lineTo(margin.left + plotWidth, margin.top + plotHeight);
+      ctx.stroke();
+
+      ctx.fillStyle = "#222";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText("x", margin.left + plotWidth / 2, height - 25);
+
+      ctx.save();
+      ctx.translate(18, margin.top + plotHeight / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.textAlign = "center";
+      ctx.fillText("Density", 0, 0);
+      ctx.restore();
+
+      ctx.strokeStyle = "#2563eb";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+
+      points.forEach((point, index) => {
+        const px =
+          margin.left + (point.x / xMax) * plotWidth;
+
+        const py =
+          margin.top +
+          plotHeight -
+          Math.min(point.y / yMax, 1) * plotHeight;
+
+        if (index === 0) {
+          ctx.moveTo(px, py);
+        } else {
+          ctx.lineTo(px, py);
+        }
+      });
+
+      ctx.stroke();
+    }
+
+    alphaInput.addEventListener("input", draw);
+    betaInput.addEventListener("input", draw);
+
+    draw();
+  </script>
+</body>
+</html>
