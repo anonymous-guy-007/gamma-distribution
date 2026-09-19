@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Interactive Gamma Distribution</title>
+  <title>Interactive Probability Distributions</title>
   <style>
     :root {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -25,9 +25,38 @@
       box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
     }
 
+    .distribution-picker {
+      margin-bottom: 1.5rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .distribution-picker label {
+      display: block;
+      margin-bottom: 0.45rem;
+      font-weight: 650;
+    }
+
+    select {
+      width: 100%;
+      max-width: 360px;
+      min-height: 44px;
+      padding: 0.65rem 0.8rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 9px;
+      background: #fff;
+      color: #222;
+      font: inherit;
+    }
+
     h1 {
-      margin-top: 0;
+      margin: 0 0 0.75rem;
       font-size: 1.8rem;
+    }
+
+    .description {
+      margin: 0 0 0.8rem;
+      line-height: 1.6;
     }
 
     .formula {
@@ -56,6 +85,13 @@
     .value {
       font-variant-numeric: tabular-nums;
       text-align: right;
+    }
+
+    .axis-note {
+      margin-top: -0.5rem;
+      color: #666;
+      font-size: 0.95rem;
+      line-height: 1.5;
     }
 
     canvas {
@@ -114,39 +150,33 @@
 </head>
 <body>
   <main class="container">
-    <h1>Interactive Gamma Distribution</h1>
+    <section class="distribution-picker">
+      <label for="distribution">Distribution</label>
+      <select id="distribution">
+        <option value="gamma">Gamma distribution</option>
+        <option value="beta">Beta distribution</option>
+      </select>
+    </section>
 
-    <p>
-      Adjust the shape parameter <strong>α</strong> and scale parameter
-      <strong>β</strong> to see how the Gamma distribution changes.
-    </p>
-
-    <div class="formula">
-      Density:
-      <strong>
-        f(x) = 1 / (Γ(α)β<sup>α</sup>) · x<sup>α−1</sup> e<sup>−x/β</sup>,
-        x &gt; 0
-      </strong>
-    </div>
+    <h1 id="title"></h1>
+    <p id="description" class="description"></p>
+    <div id="formula" class="formula"></div>
 
     <section class="controls">
       <label class="control">
-        <span>Shape α</span>
-        <input id="alpha" type="range" min="0.2" max="10" step="0.1" value="2" />
-        <span id="alphaValue" class="value">2.0</span>
+        <span id="alphaLabel"></span>
+        <input id="alpha" type="range" />
+        <span id="alphaValue" class="value"></span>
       </label>
 
       <label class="control">
-        <span>Scale β</span>
-        <input id="beta" type="range" min="0.2" max="5" step="0.1" value="1" />
-        <span id="betaValue" class="value">1.0</span>
+        <span id="betaLabel"></span>
+        <input id="beta" type="range" />
+        <span id="betaValue" class="value"></span>
       </label>
     </section>
 
-    <p style="margin-top:-0.5rem;color:#666;font-size:0.95rem;">
-      The x-axis stays fixed over broad parameter ranges and expands only when
-      necessary, making horizontal shifts of the distribution easier to recognize.
-    </p>
+    <p id="axisNote" class="axis-note"></p>
 
     <canvas id="chart" width="900" height="420"></canvas>
 
@@ -167,13 +197,23 @@
   </main>
 
   <script>
+    const distributionSelect = document.getElementById("distribution");
+    const titleEl = document.getElementById("title");
+    const descriptionEl = document.getElementById("description");
+    const formulaEl = document.getElementById("formula");
+    const axisNoteEl = document.getElementById("axisNote");
+
     const alphaInput = document.getElementById("alpha");
     const betaInput = document.getElementById("beta");
+    const alphaLabel = document.getElementById("alphaLabel");
+    const betaLabel = document.getElementById("betaLabel");
     const alphaValue = document.getElementById("alphaValue");
     const betaValue = document.getElementById("betaValue");
+
     const meanEl = document.getElementById("mean");
     const varianceEl = document.getElementById("variance");
     const sdEl = document.getElementById("sd");
+
     const canvas = document.getElementById("chart");
     const ctx = canvas.getContext("2d");
 
@@ -217,7 +257,6 @@
         return alpha < 1 ? Infinity : alpha === 1 ? 1 / beta : 0;
       }
 
-      // Gamma distribution parameterized by shape α and scale β.
       const logPdf =
         -logGamma(alpha) -
         alpha * Math.log(beta) +
@@ -226,6 +265,113 @@
 
       return Math.exp(logPdf);
     }
+
+    function betaPdf(x, alpha, beta) {
+      if (x <= 0 || x >= 1) {
+        return 0;
+      }
+
+      const logBeta =
+        logGamma(alpha) +
+        logGamma(beta) -
+        logGamma(alpha + beta);
+
+      const logPdf =
+        (alpha - 1) * Math.log(x) +
+        (beta - 1) * Math.log(1 - x) -
+        logBeta;
+
+      return Math.exp(logPdf);
+    }
+
+    const savedParameters = {
+      gamma: { alpha: 2, beta: 1 },
+      beta: { alpha: 2, beta: 2 }
+    };
+
+    const distributions = {
+      gamma: {
+        title: "Interactive Gamma Distribution",
+        description:
+          "Adjust the shape parameter α and scale parameter β to see how the Gamma distribution changes.",
+        formula:
+          'Density: <strong>f(x) = 1 / (Γ(α)β<sup>α</sup>) · x<sup>α−1</sup> e<sup>−x/β</sup>, x &gt; 0</strong>',
+        axisNote:
+          "The x-axis stays fixed over broad parameter ranges and expands only when necessary, making horizontal shifts easier to recognize.",
+        alpha: {
+          label: "Shape α",
+          min: 0.2,
+          max: 10,
+          step: 0.1
+        },
+        beta: {
+          label: "Scale β",
+          min: 0.2,
+          max: 5,
+          step: 0.1
+        },
+        pdf: gammaPdf,
+        stats(alpha, beta) {
+          const mean = alpha * beta;
+          const variance = alpha * beta * beta;
+          return {
+            mean,
+            variance,
+            sd: Math.sqrt(variance)
+          };
+        },
+        xRange(alpha, beta) {
+          const mode = alpha > 1 ? (alpha - 1) * beta : 0;
+
+          if (mode <= 8) return 20;
+          if (mode <= 16) return 30;
+          if (mode <= 25) return 40;
+          if (mode <= 35) return 50;
+          return 60;
+        },
+        xMin: 0
+      },
+
+      beta: {
+        title: "Interactive Beta Distribution",
+        description:
+          "Adjust the two shape parameters α and β to see how probability mass moves within the interval from 0 to 1.",
+        formula:
+          'Density: <strong>f(x) = x<sup>α−1</sup>(1−x)<sup>β−1</sup> / B(α,β), 0 &lt; x &lt; 1</strong>',
+        axisNote:
+          "The Beta distribution always has support from 0 to 1, so the x-axis remains fixed. This makes changes in shape and location directly comparable.",
+        alpha: {
+          label: "Shape α",
+          min: 0.2,
+          max: 10,
+          step: 0.1
+        },
+        beta: {
+          label: "Shape β",
+          min: 0.2,
+          max: 10,
+          step: 0.1
+        },
+        pdf: betaPdf,
+        stats(alpha, beta) {
+          const sum = alpha + beta;
+          const mean = alpha / sum;
+          const variance =
+            (alpha * beta) /
+            (sum * sum * (sum + 1));
+
+          return {
+            mean,
+            variance,
+            sd: Math.sqrt(variance)
+          };
+        },
+        xRange() {
+          return 1;
+        },
+        xMin: 0
+      }
+    };
 
     function niceMax(value) {
       if (!Number.isFinite(value) || value <= 0) {
@@ -248,17 +394,65 @@
     let displayedYMax = null;
     let animationFrame = null;
 
-    function calculateDistribution(alpha, beta, xMax) {
+    function currentConfig() {
+      return distributions[distributionSelect.value];
+    }
+
+    function configureSlider(input, parameter) {
+      input.min = parameter.min;
+      input.max = parameter.max;
+      input.step = parameter.step;
+    }
+
+    function applyDistributionConfig() {
+      const key = distributionSelect.value;
+      const config = distributions[key];
+      const state = savedParameters[key];
+
+      titleEl.textContent = config.title;
+      descriptionEl.textContent = config.description;
+      formulaEl.innerHTML = config.formula;
+      axisNoteEl.textContent = config.axisNote;
+
+      alphaLabel.textContent = config.alpha.label;
+      betaLabel.textContent = config.beta.label;
+
+      configureSlider(alphaInput, config.alpha);
+      configureSlider(betaInput, config.beta);
+
+      alphaInput.value = state.alpha;
+      betaInput.value = state.beta;
+
+      displayedXMax = null;
+      displayedYMax = null;
+
+      if (animationFrame !== null) {
+        cancelAnimationFrame(animationFrame);
+        animationFrame = null;
+      }
+
+      draw();
+    }
+
+    function calculateDistribution(config, alpha, beta, xMax) {
       const points = [];
       let maxY = 0;
       const n = 700;
+      const epsilon = config === distributions.beta ? 0.001 : xMax / (n * 10);
 
       for (let i = 0; i <= n; i++) {
         const x = (i / n) * xMax;
-        const sampleX = x === 0 ? xMax / (n * 10) : x;
-        let y = gammaPdf(sampleX, alpha, beta);
 
-        if (!Number.isFinite(y)) {
+        let sampleX = x;
+        if (config === distributions.beta) {
+          sampleX = Math.min(1 - epsilon, Math.max(epsilon, x));
+        } else if (x === 0) {
+          sampleX = epsilon;
+        }
+
+        let y = config.pdf(sampleX, alpha, beta);
+
+        if (!Number.isFinite(y) || y < 0) {
           y = 0;
         }
 
@@ -269,7 +463,14 @@
       return { points, maxY };
     }
 
-    function drawFrame(alpha, beta, xMax, yMax) {
+    function formatXTick(value, xMax) {
+      if (xMax <= 1) {
+        return value.toFixed(1);
+      }
+      return value.toFixed(1);
+    }
+
+    function drawFrame(config, alpha, beta, xMax, yMax) {
       const width = canvas.width;
       const height = canvas.height;
 
@@ -282,7 +483,7 @@
 
       const plotWidth = width - margin.left - margin.right;
       const plotHeight = height - margin.top - margin.bottom;
-      const { points } = calculateDistribution(alpha, beta, xMax);
+      const { points } = calculateDistribution(config, alpha, beta, xMax);
 
       ctx.clearRect(0, 0, width, height);
 
@@ -304,7 +505,11 @@
 
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
-        ctx.fillText(xValue.toFixed(1), x, margin.top + plotHeight + 10);
+        ctx.fillText(
+          formatXTick(xValue, xMax),
+          x,
+          margin.top + plotHeight + 10
+        );
       }
 
       for (let i = 0; i <= ticks; i++) {
@@ -364,49 +569,37 @@
     }
 
     function draw() {
+      const key = distributionSelect.value;
+      const config = distributions[key];
       const alpha = Number(alphaInput.value);
       const beta = Number(betaInput.value);
+
+      savedParameters[key] = { alpha, beta };
 
       alphaValue.textContent = alpha.toFixed(1);
       betaValue.textContent = beta.toFixed(1);
 
-      const mean = alpha * beta;
-      const variance = alpha * beta * beta;
-      const sd = Math.sqrt(alpha) * beta;
+      const stats = config.stats(alpha, beta);
 
-      meanEl.textContent = mean.toFixed(3);
-      varianceEl.textContent = variance.toFixed(3);
-      sdEl.textContent = sd.toFixed(3);
+      meanEl.textContent = stats.mean.toFixed(3);
+      varianceEl.textContent = stats.variance.toFixed(3);
+      sdEl.textContent = stats.sd.toFixed(3);
 
-      // Keep the x-axis deliberately stable so changes in beta are seen mainly
-      // as movement of the distribution rather than movement of the axis.
-      //
-      // The range changes only when the mode approaches the right side.
-      // This provides a compromise between a completely fixed axis and a fully
-      // automatic axis that rescales on almost every slider movement.
-      const mode = alpha > 1 ? (alpha - 1) * beta : 0;
+      const targetXMax = config.xRange(alpha, beta);
+      const probe = calculateDistribution(config, alpha, beta, targetXMax);
 
-      let targetXMax;
-      if (mode <= 8) {
-        targetXMax = 20;
-      } else if (mode <= 16) {
-        targetXMax = 30;
-      } else if (mode <= 25) {
-        targetXMax = 40;
-      } else if (mode <= 35) {
-        targetXMax = 50;
-      } else {
-        targetXMax = 60;
+      let targetYMax = niceMax(Math.max(probe.maxY * 1.15, 0.1));
+
+      // Extremely sharp edge peaks can otherwise flatten the entire Beta chart.
+      // A readable cap still shows the steep rise while keeping the central shape visible.
+      if (key === "beta") {
+        targetYMax = Math.min(targetYMax, 20);
       }
 
-      const probe = calculateDistribution(alpha, beta, targetXMax);
-      const targetYMax = niceMax(Math.max(probe.maxY * 1.15, 0.1));
-
-      // On the first render, use the target scale immediately.
       if (displayedXMax === null || displayedYMax === null) {
         displayedXMax = targetXMax;
         displayedYMax = targetYMax;
-        drawFrame(alpha, beta, displayedXMax, displayedYMax);
+        drawFrame(config, alpha, beta, displayedXMax, displayedYMax);
         return;
       }
 
@@ -421,15 +614,18 @@
 
       function animate(now) {
         const rawProgress = Math.min((now - startTime) / duration, 1);
-
-        // Ease-out interpolation: fast enough to feel responsive,
-        // but gradual enough that the axes do not jump abruptly.
         const progress = 1 - Math.pow(1 - rawProgress, 3);
 
         displayedXMax = startX + (targetXMax - startX) * progress;
         displayedYMax = startY + (targetYMax - startY) * progress;
 
-        drawFrame(alpha, beta, displayedXMax, displayedYMax);
+        drawFrame(
+          config,
+          alpha,
+          beta,
+          displayedXMax,
+          displayedYMax
+        );
 
         if (rawProgress < 1) {
           animationFrame = requestAnimationFrame(animate);
@@ -443,10 +639,11 @@
       animationFrame = requestAnimationFrame(animate);
     }
 
+    distributionSelect.addEventListener("change", applyDistributionConfig);
     alphaInput.addEventListener("input", draw);
     betaInput.addEventListener("input", draw);
 
-    draw();
+    applyDistributionConfig();
   </script>
 </body>
 </html>
