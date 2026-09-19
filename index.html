@@ -143,6 +143,11 @@
       </label>
     </section>
 
+    <p style="margin-top:-0.5rem;color:#666;font-size:0.95rem;">
+      The chart axes adjust gradually rather than jumping to a new scale immediately,
+      making changes in the distribution easier to compare.
+    </p>
+
     <canvas id="chart" width="900" height="420"></canvas>
 
     <section class="stats">
@@ -238,44 +243,15 @@
       return niceFraction * Math.pow(10, exponent);
     }
 
-    function draw() {
-      const alpha = Number(alphaInput.value);
-      const beta = Number(betaInput.value);
+    let displayedXMax = null;
+    let displayedYMax = null;
+    let animationFrame = null;
 
-      alphaValue.textContent = alpha.toFixed(1);
-      betaValue.textContent = beta.toFixed(1);
-
-      const mean = alpha / beta;
-      const variance = alpha / (beta * beta);
-      const sd = Math.sqrt(alpha) / beta;
-
-      meanEl.textContent = mean.toFixed(3);
-      varianceEl.textContent = variance.toFixed(3);
-      sdEl.textContent = sd.toFixed(3);
-
-      const width = canvas.width;
-      const height = canvas.height;
-
-      const margin = {
-        left: 65,
-        right: 25,
-        top: 25,
-        bottom: 55
-      };
-
-      const plotWidth = width - margin.left - margin.right;
-      const plotHeight = height - margin.top - margin.bottom;
-
-      const xMax = Math.max(
-        mean + 5 * sd,
-        8 / beta,
-        2
-      );
-
+    function calculateDistribution(alpha, beta, xMax) {
       const points = [];
       let maxY = 0;
-
       const n = 700;
+
       for (let i = 0; i <= n; i++) {
         const x = (i / n) * xMax;
         const sampleX = x === 0 ? xMax / (n * 10) : x;
@@ -289,7 +265,23 @@
         maxY = Math.max(maxY, y);
       }
 
-      const yMax = niceMax(maxY * 1.15);
+      return { points, maxY };
+    }
+
+    function drawFrame(alpha, beta, xMax, yMax) {
+      const width = canvas.width;
+      const height = canvas.height;
+
+      const margin = {
+        left: 65,
+        right: 25,
+        top: 25,
+        bottom: 55
+      };
+
+      const plotWidth = width - margin.left - margin.right;
+      const plotHeight = height - margin.top - margin.bottom;
+      const { points } = calculateDistribution(alpha, beta, xMax);
 
       ctx.clearRect(0, 0, width, height);
 
@@ -354,9 +346,7 @@
       ctx.beginPath();
 
       points.forEach((point, index) => {
-        const px =
-          margin.left + (point.x / xMax) * plotWidth;
-
+        const px = margin.left + (point.x / xMax) * plotWidth;
         const py =
           margin.top +
           plotHeight -
@@ -370,6 +360,70 @@
       });
 
       ctx.stroke();
+    }
+
+    function draw() {
+      const alpha = Number(alphaInput.value);
+      const beta = Number(betaInput.value);
+
+      alphaValue.textContent = alpha.toFixed(1);
+      betaValue.textContent = beta.toFixed(1);
+
+      const mean = alpha / beta;
+      const variance = alpha / (beta * beta);
+      const sd = Math.sqrt(alpha) / beta;
+
+      meanEl.textContent = mean.toFixed(3);
+      varianceEl.textContent = variance.toFixed(3);
+      sdEl.textContent = sd.toFixed(3);
+
+      // These are the scales that best fit the current distribution.
+      const targetXMax = niceMax(
+        Math.max(mean + 5 * sd, 8 / beta, 2)
+      );
+
+      const probe = calculateDistribution(alpha, beta, targetXMax);
+      const targetYMax = niceMax(Math.max(probe.maxY * 1.15, 0.1));
+
+      // On the first render, use the target scale immediately.
+      if (displayedXMax === null || displayedYMax === null) {
+        displayedXMax = targetXMax;
+        displayedYMax = targetYMax;
+        drawFrame(alpha, beta, displayedXMax, displayedYMax);
+        return;
+      }
+
+      if (animationFrame !== null) {
+        cancelAnimationFrame(animationFrame);
+      }
+
+      const startX = displayedXMax;
+      const startY = displayedYMax;
+      const duration = 320;
+      const startTime = performance.now();
+
+      function animate(now) {
+        const rawProgress = Math.min((now - startTime) / duration, 1);
+
+        // Ease-out interpolation: fast enough to feel responsive,
+        // but gradual enough that the axes do not jump abruptly.
+        const progress = 1 - Math.pow(1 - rawProgress, 3);
+
+        displayedXMax = startX + (targetXMax - startX) * progress;
+        displayedYMax = startY + (targetYMax - startY) * progress;
+
+        drawFrame(alpha, beta, displayedXMax, displayedYMax);
+
+        if (rawProgress < 1) {
+          animationFrame = requestAnimationFrame(animate);
+        } else {
+          displayedXMax = targetXMax;
+          displayedYMax = targetYMax;
+          animationFrame = null;
+        }
+      }
+
+      animationFrame = requestAnimationFrame(animate);
     }
 
     alphaInput.addEventListener("input", draw);
