@@ -144,8 +144,8 @@
     </section>
 
     <p style="margin-top:-0.5rem;color:#666;font-size:0.95rem;">
-      The chart axes adjust gradually, and the x-axis expands only moderately as the
-      distribution moves, making horizontal shifts easier to recognize.
+      The x-axis stays fixed over broad parameter ranges and expands only when
+      necessary, making horizontal shifts of the distribution easier to recognize.
     </p>
 
     <canvas id="chart" width="900" height="420"></canvas>
@@ -378,22 +378,26 @@
       varianceEl.textContent = variance.toFixed(3);
       sdEl.textContent = sd.toFixed(3);
 
-      // Estimate a range that would fully fit most of the distribution.
-      const idealXMax = Math.max(mean + 5 * sd, 8 * beta, 2);
-
-      // Do not let the x-axis expand in direct proportion to beta.
-      // Compress the change around a reference range so the curve's horizontal
-      // movement remains visually apparent while the peak still stays on screen.
-      const referenceXMax = 10;
-      const compressedXMax =
-        referenceXMax * Math.pow(idealXMax / referenceXMax, 0.45);
-
-      // For alpha > 1, make sure the mode remains comfortably visible.
+      // Keep the x-axis deliberately stable so changes in beta are seen mainly
+      // as movement of the distribution rather than movement of the axis.
+      //
+      // The range changes only when the mode approaches the right side.
+      // This provides a compromise between a completely fixed axis and a fully
+      // automatic axis that rescales on almost every slider movement.
       const mode = alpha > 1 ? (alpha - 1) * beta : 0;
-      const targetXMax = Math.max(
-        6,
-        Math.min(60, Math.max(compressedXMax, mode * 1.2))
-      );
+
+      let targetXMax;
+      if (mode <= 8) {
+        targetXMax = 20;
+      } else if (mode <= 16) {
+        targetXMax = 30;
+      } else if (mode <= 25) {
+        targetXMax = 40;
+      } else if (mode <= 35) {
+        targetXMax = 50;
+      } else {
+        targetXMax = 60;
+      }
 
       const probe = calculateDistribution(alpha, beta, targetXMax);
       const targetYMax = niceMax(Math.max(probe.maxY * 1.15, 0.1));
