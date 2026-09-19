@@ -144,8 +144,8 @@
     </section>
 
     <p style="margin-top:-0.5rem;color:#666;font-size:0.95rem;">
-      The chart axes adjust gradually rather than jumping to a new scale immediately,
-      making changes in the distribution easier to compare.
+      The chart axes adjust gradually, and the x-axis expands only moderately as the
+      distribution moves, making horizontal shifts easier to recognize.
     </p>
 
     <canvas id="chart" width="900" height="420"></canvas>
@@ -378,9 +378,21 @@
       varianceEl.textContent = variance.toFixed(3);
       sdEl.textContent = sd.toFixed(3);
 
-      // These are the scales that best fit the current distribution.
-      const targetXMax = niceMax(
-        Math.max(mean + 5 * sd, 8 * beta, 2)
+      // Estimate a range that would fully fit most of the distribution.
+      const idealXMax = Math.max(mean + 5 * sd, 8 * beta, 2);
+
+      // Do not let the x-axis expand in direct proportion to beta.
+      // Compress the change around a reference range so the curve's horizontal
+      // movement remains visually apparent while the peak still stays on screen.
+      const referenceXMax = 10;
+      const compressedXMax =
+        referenceXMax * Math.pow(idealXMax / referenceXMax, 0.45);
+
+      // For alpha > 1, make sure the mode remains comfortably visible.
+      const mode = alpha > 1 ? (alpha - 1) * beta : 0;
+      const targetXMax = Math.max(
+        6,
+        Math.min(60, Math.max(compressedXMax, mode * 1.2))
       );
 
       const probe = calculateDistribution(alpha, beta, targetXMax);
