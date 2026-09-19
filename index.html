@@ -87,6 +87,20 @@
       text-align: right;
     }
 
+    .axis-lock {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      margin-top: -0.25rem;
+      font-size: 0.98rem;
+    }
+
+    .axis-lock input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      margin: 0;
+    }
+
     .axis-note {
       margin-top: -0.5rem;
       color: #666;
@@ -174,6 +188,11 @@
         <input id="beta" type="range" />
         <span id="betaValue" class="value"></span>
       </label>
+
+      <label id="gammaAxisLockRow" class="axis-lock">
+        <input id="gammaAxisLock" type="checkbox" />
+        <span>Fix the x-axis at its current range</span>
+      </label>
     </section>
 
     <p id="axisNote" class="axis-note"></p>
@@ -209,6 +228,8 @@
     const betaLabel = document.getElementById("betaLabel");
     const alphaValue = document.getElementById("alphaValue");
     const betaValue = document.getElementById("betaValue");
+    const gammaAxisLockRow = document.getElementById("gammaAxisLockRow");
+    const gammaAxisLock = document.getElementById("gammaAxisLock");
 
     const meanEl = document.getElementById("mean");
     const varianceEl = document.getElementById("variance");
@@ -393,6 +414,7 @@
     let displayedXMax = null;
     let displayedYMax = null;
     let animationFrame = null;
+    let gammaFixedXMax = null;
 
     function currentConfig() {
       return distributions[distributionSelect.value];
@@ -422,6 +444,8 @@
 
       alphaInput.value = state.alpha;
       betaInput.value = state.beta;
+
+      gammaAxisLockRow.style.display = key === "gamma" ? "flex" : "none";
 
       displayedXMax = null;
       displayedYMax = null;
@@ -585,7 +609,15 @@
       varianceEl.textContent = stats.variance.toFixed(3);
       sdEl.textContent = stats.sd.toFixed(3);
 
-      const targetXMax = config.xRange(alpha, beta);
+      let targetXMax = config.xRange(alpha, beta);
+
+      if (key === "gamma" && gammaAxisLock.checked) {
+        if (gammaFixedXMax === null) {
+          gammaFixedXMax = displayedXMax ?? targetXMax;
+        }
+        targetXMax = gammaFixedXMax;
+      }
+
       const probe = calculateDistribution(config, alpha, beta, targetXMax);
 
       let targetYMax = niceMax(Math.max(probe.maxY * 1.15, 0.1));
@@ -638,6 +670,19 @@
 
       animationFrame = requestAnimationFrame(animate);
     }
+
+    gammaAxisLock.addEventListener("change", () => {
+      if (gammaAxisLock.checked) {
+        const alpha = Number(alphaInput.value);
+        const beta = Number(betaInput.value);
+        gammaFixedXMax =
+          displayedXMax ?? distributions.gamma.xRange(alpha, beta);
+      } else {
+        gammaFixedXMax = null;
+      }
+
+      draw();
+    });
 
     distributionSelect.addEventListener("change", applyDistributionConfig);
     alphaInput.addEventListener("input", draw);
